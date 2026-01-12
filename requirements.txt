@@ -1,0 +1,12 @@
+colcon-clean
+ftfy
+tqdm
+regex
+ftfy
+omegaconf
+regex
+scipy==1.15.3
+scikit-learn
+submitit
+termcolor
+torchmetrics

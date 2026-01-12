@@ -1,0 +1,39 @@
+services:
+  ros2-kortex-docker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        - USER_UID=1000
+        - USER_GID=1000
+        - USERNAME=zone
+    image: ros/humble-kortex
+    container_name: humble-kortex
+    network_mode: "host"
+    privileged: true
+    command: /bin/bash
+    tty: true
+    stdin_open: true
+    volumes:
+      - /home/$USERNAME/workspace/ros2_ws:/home/$USERNAME/ros2_ws
+      - /home/$USERNAME/workspace:/home/$USERNAME/workspace
+      - /tmp/.X11-unix:/tmp/.X11-unix
+      - /dev:/dev
+      - /etc/udev/rules.d:/etc/udev/rules.d
+    environment:
+      QT_X11_NO_MITSHM: 1
+      DISPLAY: $DISPLAY
+    cap_add:
+      - SYS_NICE
+    ulimits:
+      rtprio: 99
+      rttime: -1
+      memlock: 8428281856
+
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
