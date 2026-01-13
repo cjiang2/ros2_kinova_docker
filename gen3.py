@@ -11,13 +11,13 @@ ROS 2 node that drives a Kinova Gen3 arm with ros2_kortex.
 * Publishes to : /joint_trajectory_controller/joint_trajectory
 * Runs at      : ? Hz
 """
-from typing import Callable, Tuple
+from typing import Tuple
 import time
+import threading
 
 import matplotlib.pyplot as plt
 import numpy as np
 import rclpy
-import threading
 from rclpy.node import Node
 from rclpy.action import ActionClient
 from rclpy.executors import MultiThreadedExecutor
@@ -38,25 +38,9 @@ class Gen3VisualEnvironment(Node):
     STATE_TOPIC = '/joint_trajectory_controller/controller_state'
     CMD_TOPIC = '/joint_trajectory_controller/joint_trajectory'
 
-    """
-    ros2 topic pub /joint_trajectory_controller/joint_trajectory trajectory_msgs/JointTrajectory "{
-        joint_names: [joint_1, joint_2, joint_3, joint_4, joint_5, joint_6, joint_7],
-        points: [
-            { positions: [0, 0, 0, 0, 0, 0, 0], time_from_start: { sec: 10 } },
-        ]
-    }" -1
-    ros2 action send_goal /robotiq_gripper_controller/gripper_cmd control_msgs/action/GripperCommand "{command:{position: 0.0, max_effort: 100.0}}"
-
-    ros2 launch kortex_bringup gen3.launch.py robot_ip:=yyy.yyy.yyy.yyy use_fake_hardware:=true gripper:="robotiq_2f_85"
-
-    ros2 launch realsense2_camera rs_launch.py align_depth.enable:=true
-    ros2 launch realsense2_camera rs_launch.py depth_module.depth_profile:=1280x720x30 pointcloud.enable:=true
-
-    """
-
     # /camera/camera/color/image_rect_raw
     # /camera/camera/aligned_depth_to_color/image_raw
-
+    # /twist_controller/commands
 
     # Joint names and indices
     JOINT_NAMES = [
@@ -111,14 +95,14 @@ class Gen3VisualEnvironment(Node):
         self.joint_traj_pub = self.create_publisher(JointTrajectory, self.CMD_TOPIC, 10)
 
         # Action client for gripper
-        # Thread-safe: Keep action client(s) inside their own Reentrant Callback
+        # Keep action client(s) inside their own Reentrant Callback
+        # to run with subscriber(s) in parallel
         # https://discourse.openrobotics.org/t/how-to-use-callback-groups-in-ros2/25255
         # https://karelics.fi/blog/2022/04/21/deadlocks-in-rclpy/
         self.callback_group = ReentrantCallbackGroup()      
         self.gripper_cmd_client = ActionClient(self, GripperCommand, '/robotiq_gripper_controller/gripper_cmd', callback_group=self.callback_group)
         self.follow_joint_traj_client = ActionClient(
-            self, 
-            FollowJointTrajectory, 
+            self, FollowJointTrajectory, 
             '/joint_trajectory_controller/follow_joint_trajectory',
             callback_group=self.callback_group
         )
@@ -140,6 +124,7 @@ class Gen3VisualEnvironment(Node):
 
     # -----
     # Publisher(s)
+    # -----
     def send_joint_angles(self, goal: Tuple[float], sec: int = 1, nanosec: int = 0):
         """Send a non-blocking, delta joint position (rad) to the robot.
         """
@@ -163,6 +148,31 @@ class Gen3VisualEnvironment(Node):
 
     # -----
     # Action clinet(s)
+    # -----
+    def _wait_future(self, future, timeout_sec: float = 5.0):
+        """Safely wait for an rclpy future using a threading.Event.
+        """
+        event = threading.Event()
+        def _done(fut):
+            event.set()
+        future.add_done_callback(_done)
+
+        # Wait for future
+        # NOTE: Slight chance of false timeouts at the boundary
+        while not future.done():
+            time.sleep(0.1)     
+            if not event.wait(timeout=timeout_sec):
+                self.get_logger().error(f"Timeout after ({timeout_sec}s).")
+                return None, False
+
+        # Future is done, propagate any exception
+        try:
+            return future.result(), True
+        except Exception as e:
+            self.get_logger().error("{}".format(e))
+            return None, False
+
+
     def send_gripper_command(self, position: float, max_effort: float = 100.0):
         """Send a blocking gripper command.
         """
@@ -178,23 +188,22 @@ class Gen3VisualEnvironment(Node):
         # Send goal and wait to be accepted/rejected
         self.get_logger().info("Sending gripper cmd...")
         send_goal_future = self.gripper_cmd_client.send_goal_async(cmd)
-        while not send_goal_future.done():
-            time.sleep(0.1)
-
-        goal_handle = send_goal_future.result()
-        if not goal_handle.accepted:
+        goal_handle, ok = self._wait_future(send_goal_future)
+        if not ok or not goal_handle.accepted:
             self.get_logger().error("Gripper cmd rejected!")
             return False
         
         # Block until gripper command is completed
         self.get_logger().info("Goal accepted. Waiting for gripper to finish moving...")
-        result_future = goal_handle.get_result_async()
-        while not result_future.done():
-            time.sleep(0.1)
+        cmd_future = goal_handle.get_result_async()
+        result, ok = self._wait_future(cmd_future)
+        if not ok: 
+            self.get_logger().error("Gripper cmd failed!")
+            return False
 
-        result = result_future.result()
         self.get_logger().info('Gripper finished: {}'.format(result.result))
         return True
+    
     
     def send_joint_angles_blocking(self, goal: Tuple[float], sec: int = 1, nanosec: int = 0):
         """Send a joint trajectory (in rads) and blocks until the robot arrives.
@@ -224,23 +233,36 @@ class Gen3VisualEnvironment(Node):
         # Send goal and wait to be accepted/rejected
         self.get_logger().info("Sending trajectory goal...")
         send_goal_future = self.follow_joint_traj_client.send_goal_async(trajectory_goal)
-        while not send_goal_future.done():
-            time.sleep(0.1)
-
-        goal_handle = send_goal_future.result()
-        if not goal_handle.accepted:
+        goal_handle, ok = self._wait_future(send_goal_future)
+        if not ok or not goal_handle.accepted:
             self.get_logger().error("Trajectory goal rejected by controller!")
             return False
 
         # Wait for joint(s) to reach the position
         self.get_logger().info("Goal accepted. Waiting for robot to finish moving...")
         result_future = goal_handle.get_result_async()
-        while not result_future.done():
-            time.sleep(0.1)
+        result, ok = self._wait_future(result_future, timeout_sec=sec + 1)
+        if not ok:
+            return False
 
-        result = result_future.result()
         self.get_logger().info(f"Trajectory finished with status: {result.status}")
         return True
+
+
+def send_gen3_to_test(env):
+    """Gen3 will point forward.
+    """
+    goal = [
+        -0.0037103160306983796,
+        -0.37204786534181356,
+        -3.1326697323574826,
+        -2.3142302619476394,
+        0.0007629473435017953,
+        -0.2223744836538346,
+        1.5677635189455141,
+    ]
+    env.send_joint_angles_blocking(goal, sec=10)
+    env.send_gripper_command(0.0)
 
 
 def send_gen3_home(env):
@@ -274,16 +296,25 @@ def main(args=None):
 
     # # -----
     # # Main thread is free to do other things
+    # # -----
+    # # Some extra test(s)
+    # send_gen3_to_test(env)
+    # time.sleep(1.0)
+    # print("Current:", env.joint_positions)
+
+    # # This will spin the 7th joint a bit
     # i = 0
-    # goal = [0.0] * 7
     # gripper_pos = 0.0
+    # goal = np.array(env.joint_positions).copy()
+    # orig = goal.copy()
+    # print(goal)
 
     # while True:
     #     i += 1
-    #     goal[0] += 0.1
+    #     goal[6] += 0.15
     #     gripper_pos += 0.05
     #     print(env.joint_positions, "Goal:", goal)
-    #     env.send_joint_angles(goal, sec=5)
+    #     env.send_joint_angles(goal, sec=1)
     #     env.send_gripper_command(gripper_pos)
 
     #     # plt.subplot(1,2,1)
@@ -292,10 +323,20 @@ def main(args=None):
     #     # plt.imshow(env.depth)
     #     # plt.pause(0.001)
 
-    #     if input("Press enter to continue: ") or i > 5:
+    #     if input("Press enter to continue: ") or i > 3:
     #         break
-    #     plt.clf()
+    #     # plt.clf()
+
+    # env.send_joint_angles(orig, sec=5)
+
+    # # This will spin the gripper a bit
+    # if not input("Enter to send gripper command: "):
+    #     env.send_gripper_command(0.5)
+    #     print("done.")
+    #     env.send_gripper_command(0.0)
+
     if not input("Enter to send to home: "):
+        env.send_gripper_command(0.0)
         send_gen3_home(env)
 
     # Clean up
