@@ -21,7 +21,7 @@ RUN sudo mkdir -p /etc/apt/keyrings && \
 
 # Install pip, moveit2
 RUN apt-get update && apt-get install -y --no-install-recommends python3-pip \
-    && apt-get install -y ros-humble-moveit \
+    && apt-get install -y ros-humble-moveit ros-humble-tf-transformations \
     && sudo apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # Upgrade pip
@@ -30,7 +30,7 @@ RUN pip3 install --upgrade pip
 # Setup user configuration
 ARG USER_UID=1000
 ARG USER_GID=1000
-ARG USERNAME=zone
+ARG USERNAME=robotvision
 
 RUN groupadd --gid $USER_GID $USERNAME \
     && useradd --uid $USER_UID --gid $USER_GID -m $USERNAME \
@@ -51,7 +51,8 @@ RUN pip3 install torch torchvision --index-url https://download.pytorch.org/whl/
     && pip3 install numpy==1.26.4 \
     && pip3 install -U xformers --index-url https://download.pytorch.org/whl/cu129 \
     && pip3 install -r requirements.txt \
-    && pip3 install kortex_api-3.3.0.2-py3-none-any.whl
+    && pip3 install kortex_api-2.7.0.post5-py3-none-any.whl
+RUN pip3 install --upgrade transforms3d
 
 # Set the default shell to bash and the workdir to the source directory
 SHELL [ "/bin/bash", "-c" ]
