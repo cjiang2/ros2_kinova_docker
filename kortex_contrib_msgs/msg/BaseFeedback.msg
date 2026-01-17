@@ -1,0 +1,6 @@
+float32 tool_pose_x
+float32 tool_pose_y
+float32 tool_pose_z
+float32 tool_pose_theta_x
+float32 tool_pose_theta_y
+float32 tool_pose_theta_z

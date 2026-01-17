@@ -1,0 +1,3 @@
+kortex_contrib_msgs/CartesianPose pose
+---
+bool ok
