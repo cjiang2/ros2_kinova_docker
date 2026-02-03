@@ -100,12 +100,12 @@ class JointStatePublisher(Node):
             # Publish cartesian tool pose (in degree)
             # TODO: Publish full base feedbacks like ros_kortex
             base_state = BaseFeedback()
-            base_state.tool_pose_x = base_feedback.base.tool_pose_x
+            base_state.tool_pose_x = base_feedback.base.tool_pose_x     # meters
             base_state.tool_pose_y = base_feedback.base.tool_pose_y
             base_state.tool_pose_z = base_feedback.base.tool_pose_z
-            base_state.tool_pose_theta_x = base_feedback.base.tool_pose_theta_x
-            base_state.tool_pose_theta_y = base_feedback.base.tool_pose_theta_y
-            base_state.tool_pose_theta_z = base_feedback.base.tool_pose_theta_z
+            base_state.tool_pose_theta_x = np.deg2rad(base_feedback.base.tool_pose_theta_x)     # degrees -> radians
+            base_state.tool_pose_theta_y = np.deg2rad(base_feedback.base.tool_pose_theta_y)
+            base_state.tool_pose_theta_z = np.deg2rad(base_feedback.base.tool_pose_theta_z)
             self.base_feedback_pub.publish(base_state)
 
         except:

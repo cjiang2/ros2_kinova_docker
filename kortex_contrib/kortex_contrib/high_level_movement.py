@@ -441,7 +441,9 @@ class HighLevelMovement(Node):
     # -----
 
     def cartesian_move_srv_callback(self, request, response):
-        """Send one Cartesian (x, y, z, theta_x, theta_y, theta_z) pose.
+        """Send one cartesian (x, y, z, theta_x, theta_y, theta_z) end-effector pose.
+        Position: (x, y, z), in meters.
+        Orientation: (theta_x, theta_y, theta_z), in radians. (kortex accepts degrees)
         """
         pose = request.pose
         self.get_logger().info("Pose: {}".format(pose))
@@ -453,14 +455,9 @@ class HighLevelMovement(Node):
         action.reach_pose.target_pose.x = pose.z
         action.reach_pose.target_pose.y = pose.y
         action.reach_pose.target_pose.z = pose.z
-        action.reach_pose.target_pose.theta_x = pose.theta_x
-        action.reach_pose.target_pose.theta_y = pose.theta_y
-        action.reach_pose.target_pose.theta_z = pose.theta_z
-
-        # Rotation
-        # TODO: Euler to Quaternion
-        # theta_x, theta_y, theta_z = euler_from_quaternion(pose.orientation)
-        # self.get_logger().info("{} {} {}".format(theta_x, theta_y, theta_z))
+        action.reach_pose.target_pose.theta_x = np.rad2deg(pose.theta_x)
+        action.reach_pose.target_pose.theta_y = np.rad2deg(pose.theta_y)
+        action.reach_pose.target_pose.theta_z = np.rad2deg(pose.theta_z)
         
         # Blocking pose execution
         e = threading.Event()
