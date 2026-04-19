@@ -16,6 +16,8 @@ docker compose up -d
 docker exec -it humble-kortex /bin/bash
 ```
 
+Make sure *.rules are in "/etc/udev/rules.d" on host.
+
 ## Initialize ROS2 Workspace
 Clone [ros2_kortex](https://github.com/Kinovarobotics/ros2_kortex/tree/humble) and [realsense-ros](https://github.com/realsenseai/realsense-ros/tree/4.56.4) to your destinated **$COLCON_WS**.
 

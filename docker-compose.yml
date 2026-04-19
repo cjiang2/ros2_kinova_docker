@@ -6,7 +6,7 @@ services:
       args:
         - USER_UID=1000
         - USER_GID=1000
-        - USERNAME=robotvision
+        - USERNAME=zone
     image: ros/humble-kortex
     container_name: humble-kortex
     network_mode: "host"
