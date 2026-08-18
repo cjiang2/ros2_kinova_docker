@@ -210,8 +210,8 @@ class HighLevelMovement(Node):
 
     def twist_cmd_callback(self, msg: TwistStamped):
         cmd = Base_pb2.TwistCommand()
-        # twist_cmd.reference_frame = Base_pb2.CARTESIAN_REFERENCE_FRAME_TOOL
-        cmd.reference_frame = Base_pb2.CARTESIAN_JOYSTICK
+        cmd.reference_frame = Base_pb2.CARTESIAN_REFERENCE_FRAME_TOOL
+        # cmd.reference_frame = Base_pb2.CARTESIAN_JOYSTICK
         cmd.duration = 0
 
         try:
@@ -452,7 +452,7 @@ class HighLevelMovement(Node):
 
         # Follow ros_kortex Pose: 
         # https://github.com/Kinovarobotics/ros_kortex/blob/noetic-devel/kortex_driver/msg/generated/base/Pose.msg
-        action.reach_pose.target_pose.x = pose.z
+        action.reach_pose.target_pose.x = pose.x
         action.reach_pose.target_pose.y = pose.y
         action.reach_pose.target_pose.z = pose.z
         action.reach_pose.target_pose.theta_x = np.rad2deg(pose.theta_x)
