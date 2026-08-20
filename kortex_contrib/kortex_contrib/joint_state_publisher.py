@@ -97,7 +97,7 @@ class JointStatePublisher(Node):
             ]
             self.joint_states_pub.publish(state)
 
-            # Publish cartesian tool pose (in degree)
+            # Publish cartesian tool pose
             # TODO: Publish full base feedbacks like ros_kortex
             base_state = BaseFeedback()
             base_state.tool_pose_x = base_feedback.base.tool_pose_x     # meters

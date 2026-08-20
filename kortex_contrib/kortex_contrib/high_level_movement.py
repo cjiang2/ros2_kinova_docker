@@ -13,6 +13,7 @@ from rclpy.callback_groups import MutuallyExclusiveCallbackGroup, ReentrantCallb
 from rclpy.executors import MultiThreadedExecutor
 import numpy as np
 from tf_transformations import euler_from_quaternion
+from scipy.spatial.transform import Rotation
 
 from geometry_msgs.msg import TwistStamped
 from control_msgs.msg import JointJog
@@ -440,25 +441,76 @@ class HighLevelMovement(Node):
     # Cartesian Pose Control
     # -----
 
+    @staticmethod
+    def _pose_to_transform(
+        xyz: np.ndarray, 
+        theta_xyz: np.ndarray, 
+        degrees: bool = False,
+        ):
+        """Build an SE(3) transform from xyz translation and 
+        extrinsic XYZ Tait-Bryan Euler angles.
+        [[ R00 R01 R02  x ]
+         [ R10 R11 R12  y ]
+         [ R20 R21 R22  z ]
+         [  0   0   0   1 ]]
+        """
+        transform = np.eye(4)
+        transform[:3, :3] = Rotation.from_euler(
+            "xyz", theta_xyz, degrees=degrees
+        ).as_matrix()
+        transform[:3, 3] = xyz
+        return transform
+
+    @staticmethod
+    def _transform_to_kortex_pose(transform: np.ndarray):
+        """Convert an SE(3) transform to back to 
+        Kortex's Cartesian pose in (m, deg)."""
+        xyz = transform[:3, 3]
+        theta_xyz = Rotation.from_matrix(
+            transform[:3, :3]
+        ).as_euler("xyz", degrees=True)
+        return xyz, theta_xyz
+
+
     def cartesian_move_srv_callback(self, request, response):
         """Send one cartesian (x, y, z, theta_x, theta_y, theta_z) end-effector pose.
         Position: (x, y, z), in meters.
         Orientation: (theta_x, theta_y, theta_z), in radians. (kortex accepts degrees)
         """
-        pose = request.pose
-        self.get_logger().info("Pose: {}".format(pose))
+        pose, relative = request.pose, request.relative
+        self.get_logger().info(f"Pose: {pose}, relative: {request.relative}")
 
+        # Grab translation & rotation
+        target_xyz = np.array([pose.x, pose.y, pose.z], dtype=float)
+        target_theta = np.array([pose.theta_x, pose.theta_y, pose.theta_z], dtype=float)
+
+        # Resolve relative pose
+        if relative:
+            # Grab the current tool pose
+            current = self.base.GetMeasuredCartesianPose()
+            current_transform = self._pose_to_transform(
+                np.array([current.x, current.y, current.z], dtype=float),
+                np.array([current.theta_x, current.theta_y, current.theta_z], dtype=float),
+                degrees=True,       # kortex returns degrees by default
+            )
+
+            # Composition update: T^base_target = T^base_tool @ T_tool^target
+            delta = self._pose_to_transform(target_xyz, target_theta, degrees=False)
+            target_transform = current_transform @ delta
+            target_xyz, target_theta_deg = self._transform_to_kortex_pose(target_transform)
+
+        else:
+            target_theta_deg = np.rad2deg(target_theta)
+
+        # Send in kortex pose
         action = Base_pb2.Action()
+        action.reach_pose.target_pose.x = float(target_xyz[0])
+        action.reach_pose.target_pose.y = float(target_xyz[1])
+        action.reach_pose.target_pose.z = float(target_xyz[2])
+        action.reach_pose.target_pose.theta_x = float(target_theta_deg[0])
+        action.reach_pose.target_pose.theta_y = float(target_theta_deg[1])
+        action.reach_pose.target_pose.theta_z = float(target_theta_deg[2])
 
-        # Follow ros_kortex Pose: 
-        # https://github.com/Kinovarobotics/ros_kortex/blob/noetic-devel/kortex_driver/msg/generated/base/Pose.msg
-        action.reach_pose.target_pose.x = pose.x
-        action.reach_pose.target_pose.y = pose.y
-        action.reach_pose.target_pose.z = pose.z
-        action.reach_pose.target_pose.theta_x = np.rad2deg(pose.theta_x)
-        action.reach_pose.target_pose.theta_y = np.rad2deg(pose.theta_y)
-        action.reach_pose.target_pose.theta_z = np.rad2deg(pose.theta_z)
-        
         # Blocking pose execution
         e = threading.Event()
         notification_handle = self.base.OnNotificationActionTopic(

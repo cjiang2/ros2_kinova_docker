@@ -1,3 +1,4 @@
 kortex_contrib_msgs/CartesianPose pose
+bool relative
 ---
 bool ok
