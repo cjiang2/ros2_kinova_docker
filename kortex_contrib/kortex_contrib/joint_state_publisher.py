@@ -74,7 +74,8 @@ class JointStatePublisher(Node):
         state = JointState()
         try:
             base_feedback = self.base_cyclic.RefreshFeedback()
-            state.header.stamp = self.get_clock().now().to_msg()
+            stamp = self.get_clock().now().to_msg()
+            state.header.stamp = stamp
             state.name = [
                 "joint_1",
                 "joint_2",
@@ -100,6 +101,9 @@ class JointStatePublisher(Node):
             # Publish cartesian tool pose
             # TODO: Publish full base feedbacks like ros_kortex
             base_state = BaseFeedback()
+            base_state.header.stamp = stamp
+
+            # TCP tool pose
             base_state.tool_pose_x = base_feedback.base.tool_pose_x     # meters
             base_state.tool_pose_y = base_feedback.base.tool_pose_y
             base_state.tool_pose_z = base_feedback.base.tool_pose_z
@@ -107,6 +111,14 @@ class JointStatePublisher(Node):
             base_state.tool_pose_theta_y = np.deg2rad(base_feedback.base.tool_pose_theta_y)
             base_state.tool_pose_theta_z = np.deg2rad(base_feedback.base.tool_pose_theta_z)
             self.base_feedback_pub.publish(base_state)
+
+            # TCP twist
+            base_state.tool_twist_linear_x = base_feedback.base.tool_twist_linear_x
+            base_state.tool_twist_linear_y = base_feedback.base.tool_twist_linear_y
+            base_state.tool_twist_linear_z = base_feedback.base.tool_twist_linear_z
+            base_state.tool_twist_angular_x = np.deg2rad(base_feedback.base.tool_twist_angular_x)
+            base_state.tool_twist_angular_y = np.deg2rad(base_feedback.base.tool_twist_angular_y)
+            base_state.tool_twist_angular_z = np.deg2rad(base_feedback.base.tool_twist_angular_z)
 
         except:
             self.get_logger().error("Failed to publish joint states")

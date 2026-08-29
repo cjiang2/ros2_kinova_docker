@@ -27,13 +27,14 @@ endif()
 # Msgs and Srvs
 find_package(trajectory_msgs REQUIRED)
 find_package(rosidl_default_generators REQUIRED)
+find_package(std_msgs REQUIRED)
 
 rosidl_generate_interfaces(${PROJECT_NAME}
   "srv/SendJointTrajectory.srv"
   "srv/SendCartesianPose.srv"
   "msg/BaseFeedback.msg"
   "msg/CartesianPose.msg"
-  DEPENDENCIES trajectory_msgs
+  DEPENDENCIES trajectory_msgs std_msgs
 )
 
 ament_package()

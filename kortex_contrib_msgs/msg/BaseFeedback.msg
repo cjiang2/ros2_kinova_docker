@@ -1,6 +1,13 @@
+std_msgs/Header header
 float32 tool_pose_x
 float32 tool_pose_y
 float32 tool_pose_z
 float32 tool_pose_theta_x
 float32 tool_pose_theta_y
 float32 tool_pose_theta_z
+float32 tool_twist_linear_x
+float32 tool_twist_linear_y
+float32 tool_twist_linear_z
+float32 tool_twist_angular_x
+float32 tool_twist_angular_y
+float32 tool_twist_angular_z
