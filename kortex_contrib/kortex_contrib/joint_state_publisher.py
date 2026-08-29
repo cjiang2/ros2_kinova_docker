@@ -110,7 +110,6 @@ class JointStatePublisher(Node):
             base_state.tool_pose_theta_x = np.deg2rad(base_feedback.base.tool_pose_theta_x)     # degrees -> radians
             base_state.tool_pose_theta_y = np.deg2rad(base_feedback.base.tool_pose_theta_y)
             base_state.tool_pose_theta_z = np.deg2rad(base_feedback.base.tool_pose_theta_z)
-            self.base_feedback_pub.publish(base_state)
 
             # TCP twist
             base_state.tool_twist_linear_x = base_feedback.base.tool_twist_linear_x
@@ -119,6 +118,8 @@ class JointStatePublisher(Node):
             base_state.tool_twist_angular_x = np.deg2rad(base_feedback.base.tool_twist_angular_x)
             base_state.tool_twist_angular_y = np.deg2rad(base_feedback.base.tool_twist_angular_y)
             base_state.tool_twist_angular_z = np.deg2rad(base_feedback.base.tool_twist_angular_z)
+
+            self.base_feedback_pub.publish(base_state)
 
         except:
             self.get_logger().error("Failed to publish joint states")
